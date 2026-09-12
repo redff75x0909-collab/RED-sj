@@ -1,0 +1,6 @@
+{
+  "name": "RDC AI",
+  "description": "Personal AI assistant with voice, screen control, code analyzer, web search, phone & SMS assistance, and multimodal intelligence.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">RDC AI</string>
+    <string name="accessibility_service_description">RDC AI Accessibility Assistant reads accessible text, understands visible screen elements, and executes permitted navigation actions upon your command.</string>
+</resources>
