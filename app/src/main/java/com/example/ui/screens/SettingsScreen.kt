@@ -186,7 +186,7 @@ fun SettingsScreen(
                                 readOnly = true,
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded) },
                                 modifier = Modifier
-                                    .menuAnchor()
+                                    .menuAnchor(androidx.compose.material3.MenuAnchorType.PrimaryNotEditable, enabled = true)
                                     .fillMaxWidth()
                             )
                             ExposedDropdownMenu(
@@ -238,7 +238,7 @@ fun SettingsScreen(
                                 readOnly = true,
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = languageExpanded) },
                                 modifier = Modifier
-                                    .menuAnchor()
+                                    .menuAnchor(androidx.compose.material3.MenuAnchorType.PrimaryNotEditable, enabled = true)
                                     .fillMaxWidth()
                             )
                             ExposedDropdownMenu(

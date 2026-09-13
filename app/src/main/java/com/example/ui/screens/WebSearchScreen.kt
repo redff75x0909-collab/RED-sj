@@ -20,11 +20,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -222,7 +222,7 @@ fun WebSearchScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
-                                Icon(Icons.Default.HelpOutline, contentDescription = null, tint = Color(0xFFD29922), modifier = Modifier.size(16.dp))
+                                Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = null, tint = Color(0xFFD29922), modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(un, fontSize = 12.sp, color = Color(0xFFF0E6D2), lineHeight = 18.sp)
                             }
@@ -257,7 +257,7 @@ fun SearchResultCard(item: SearchResultItem, onClick: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(item.sourceName.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF388BFD))
                 Spacer(modifier = Modifier.weight(1f))
-                Icon(Icons.Default.OpenInNew, contentDescription = "Open Link", modifier = Modifier.size(14.dp), tint = Color(0xFF8B949E))
+                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open Link", modifier = Modifier.size(14.dp), tint = Color(0xFF8B949E))
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(item.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)

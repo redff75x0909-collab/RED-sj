@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Mic
@@ -87,6 +88,9 @@ fun FloatingScreenAssistantBubble(
     val isSpeaking by viewModel.isVoiceSpeaking.collectAsState()
     val screenSummary by viewModel.screenSummary.collectAsState()
     val recognizedSpeech by viewModel.recognizedSpeech.collectAsState()
+    val remainingCreditMs by viewModel.remainingCreditMs.collectAsState()
+    val cooldownRemainingMs by viewModel.cooldownRemainingMs.collectAsState()
+    val isCreditActive by viewModel.isCreditActive.collectAsState()
 
     val density = LocalDensity.current
     val config = LocalConfiguration.current
@@ -102,6 +106,25 @@ fun FloatingScreenAssistantBubble(
     // Two-step heartbeat pulsation ("ধাপ ধাপ করে পালস") animation
     val infiniteTransition = rememberInfiniteTransition(label = "pulse_transition")
     val isActive = isListening || isSpeaking
+
+    // Animated vertical jumping/bouncing animation ("ফাল দিবে - কথা বলা বা শুনলে লাফাবে")
+    val bounceOffsetY by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = -22f,
+        animationSpec = infiniteRepeatable(
+            animation = keyframes {
+                durationMillis = 460
+                0f at 0 using FastOutSlowInEasing
+                -22f at 160 using FastOutSlowInEasing // ফাল দিয়ে উপরে উঠল (Jump up)
+                -26f at 200 using FastOutSlowInEasing // পিক (Peak)
+                0f at 340 using FastOutSlowInEasing // নিচে নামল (Land)
+                4f at 390 using FastOutSlowInEasing // মাটিতে নামার বাউন্স (Squash)
+                0f at 460
+            },
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "jump_bounce_phal"
+    )
 
     val stepPulseScale by infiniteTransition.animateFloat(
         initialValue = 1.0f,
@@ -168,10 +191,13 @@ fun FloatingScreenAssistantBubble(
     Box(
         modifier = modifier.fillMaxSize()
     ) {
-        // Draggable container
+        // Draggable container with jumping bounce offset ("ফাল দেওয়ার জন্য Y-অফসেট")
         Box(
             modifier = Modifier
-                .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
+                .offset {
+                    val jumpPx = if (isActive) with(density) { bounceOffsetY.dp.toPx() } else 0f
+                    IntOffset(offsetX.roundToInt(), (offsetY + jumpPx).roundToInt())
+                }
                 .pointerInput(Unit) {
                     detectDragGestures { change, dragAmount ->
                         change.consume()
@@ -205,7 +231,7 @@ fun FloatingScreenAssistantBubble(
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween,
-                                modifier = Modifier.padding(bottom = 6.dp)
+                                modifier = Modifier.padding(bottom = 4.dp)
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Box(
@@ -218,7 +244,7 @@ fun FloatingScreenAssistantBubble(
                                     Text(
                                         text = when {
                                             isListening -> "শুনছি... (বলুন)"
-                                            isSpeaking -> "উত্তর দিচ্ছি (ফিমেল কণ্ঠ)"
+                                            isSpeaking -> "উত্তর দিচ্ছি (ফাল দিচ্ছে)"
                                             else -> "RDC AI Assistant"
                                         },
                                         fontSize = 11.sp,
@@ -231,6 +257,35 @@ fun FloatingScreenAssistantBubble(
                                     modifier = Modifier.size(20.dp)
                                 ) {
                                     Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.LightGray, modifier = Modifier.size(14.dp))
+                                }
+                            }
+
+                            // Credit & Cooldown Badge
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = if (isCreditActive) Color(0xFF00382E) else Color(0xFF3E1212),
+                                modifier = Modifier.padding(bottom = 6.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .clip(CircleShape)
+                                            .background(if (isCreditActive) Color(0xFF00FFB2) else Color(0xFFFF5252))
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = if (isCreditActive)
+                                            "ক্রেডিট বাকি: ${viewModel.formatDuration(remainingCreditMs)}"
+                                        else
+                                            "কুলডাউন বাকি: ${viewModel.formatDuration(cooldownRemainingMs)}",
+                                        fontSize = 9.sp,
+                                        color = if (isCreditActive) Color(0xFF80CBC4) else Color(0xFFFF8A80),
+                                        fontWeight = FontWeight.SemiBold
+                                    )
                                 }
                             }
 
@@ -403,7 +458,7 @@ fun FloatingScreenAssistantBubble(
                     Icon(
                         imageVector = when {
                             isListening -> Icons.Default.GraphicEq
-                            isSpeaking -> Icons.Default.VolumeUp
+                            isSpeaking -> Icons.AutoMirrored.Filled.VolumeUp
                             else -> Icons.Default.SmartScreen
                         },
                         contentDescription = "RDC Voice Assistant",

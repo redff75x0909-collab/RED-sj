@@ -40,6 +40,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Code
@@ -217,7 +218,7 @@ fun HomeScreen(
                     if (isSpeaking) {
                         IconButton(onClick = { viewModel.stopSpeaking() }) {
                             Icon(
-                                imageVector = Icons.Default.VolumeUp,
+                                imageVector = Icons.AutoMirrored.Filled.VolumeUp,
                                 contentDescription = "Stop Speech",
                                 tint = Color(0xFF00D4B2)
                             )
@@ -277,6 +278,85 @@ fun HomeScreen(
                             icon = Icons.Default.Phone,
                             label = "Phone & SMS",
                             onClick = onNavigateToPhoneSms
+                        )
+                    }
+                }
+
+                // Credit Limit & Device Status Bar
+                val remainingCreditMs by viewModel.remainingCreditMs.collectAsState()
+                val cooldownRemainingMs by viewModel.cooldownRemainingMs.collectAsState()
+                val isCreditActive by viewModel.isCreditActive.collectAsState()
+                val deviceSpecs by viewModel.deviceSpecs.collectAsState()
+
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (isCreditActive) Color(0xFF072421) else Color(0xFF2E1212),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (isCreditActive) Color(0xFF00D4B2).copy(alpha = 0.5f) else Color(0xFFFF5252).copy(alpha = 0.5f)
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 10.dp)
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(7.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isCreditActive) Color(0xFF00FFB2) else Color(0xFFFF5252))
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (isCreditActive)
+                                        "ব্যবহারের ক্রেডিট: ${viewModel.formatDuration(remainingCreditMs)} বাকি (২ ঘণ্টার লিমিট)"
+                                    else
+                                        "কুলডাউন: ${viewModel.formatDuration(cooldownRemainingMs)} পর ক্রেডিট যুক্ত হবে",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isCreditActive) Color(0xFFE6FFF9) else Color(0xFFFFCDD2)
+                                )
+                            }
+
+                            // Device badge
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = if (deviceSpecs.isEligible) Color(0xFF004D40) else Color(0xFF421C1C),
+                                modifier = Modifier.clickable {
+                                    if (!deviceSpecs.isVivo || !deviceSpecs.is4GbRam) {
+                                        viewModel.toggleTestingBypass(!deviceSpecs.isBypassActive)
+                                    }
+                                }
+                            ) {
+                                Text(
+                                    text = if (deviceSpecs.isVivo && deviceSpecs.is4GbRam)
+                                        "Vivo 4GB ✓"
+                                    else if (deviceSpecs.isBypassActive)
+                                        "টেস্ট মোড অন"
+                                    else
+                                        "ডিভাইস যাচাই",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (deviceSpecs.isEligible) Color(0xFF80CBC4) else Color(0xFFFFAB91),
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+
+                        Text(
+                            text = if (isCreditActive)
+                                "১ ক্রেডিট = ২ ঘণ্টা। ক্রেডিট চলাকালীন অন্য ক্রেডিট যুক্ত হবে না। শেষ হলে ৬ ঘণ্টা পর নতুন ক্রেডিট যোগ হবে।"
+                            else
+                                "২ ঘণ্টার ক্রেডিট শেষ হয়েছে। ৬ ঘণ্টা পূর্ণ না হওয়া পর্যন্ত অপেক্ষা করুন।",
+                            fontSize = 9.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 2.dp)
                         )
                     }
                 }

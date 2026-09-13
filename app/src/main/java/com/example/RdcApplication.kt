@@ -28,12 +28,18 @@ class RdcApplication : Application() {
         private set
     lateinit var phoneSmsService: PhoneSmsService
         private set
+    lateinit var creditManager: com.example.data.CreditManager
+        private set
+    lateinit var deviceEligibilityManager: com.example.service.DeviceEligibilityManager
+        private set
 
     override fun onCreate() {
         super.onCreate()
         database = AppDatabase.getInstance(this)
         chatRepository = ChatRepository(database.chatDao())
         settingsRepository = SettingsRepository(this)
+        creditManager = com.example.data.CreditManager(this)
+        deviceEligibilityManager = com.example.service.DeviceEligibilityManager(this)
         aiService = GeminiAIService()
         webSearchService = DuckDuckGoSearchService()
         codeAnalysisService = DefaultCodeAnalysisService()

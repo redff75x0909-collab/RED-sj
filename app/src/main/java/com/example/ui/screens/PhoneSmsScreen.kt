@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.CallMissed
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
@@ -287,7 +288,7 @@ fun CallItemCard(call: CallLogItem) {
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = if (isBusyRejected) Icons.Default.CallMissed else Icons.Default.Call,
+                    imageVector = if (isBusyRejected) Icons.AutoMirrored.Filled.CallMissed else Icons.Default.Call,
                     contentDescription = null,
                     tint = if (isBusyRejected) Color(0xFFFA7970) else Color(0xFF388BFD),
                     modifier = Modifier.size(20.dp)

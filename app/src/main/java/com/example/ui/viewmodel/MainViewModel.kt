@@ -62,6 +62,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _lastSearchResponse = MutableStateFlow<WebSearchResponse?>(null)
     val lastSearchResponse: StateFlow<WebSearchResponse?> = _lastSearchResponse.asStateFlow()
 
+    // Credit & Device Eligibility State
+    val remainingCreditMs: StateFlow<Long> = app.creditManager.remainingCreditMs
+    val cooldownRemainingMs: StateFlow<Long> = app.creditManager.cooldownRemainingMs
+    val isCreditActive: StateFlow<Boolean> = app.creditManager.isCreditActive
+    val deviceSpecs = app.deviceEligibilityManager.deviceSpecs
+
+    fun toggleTestingBypass(enable: Boolean) {
+        app.deviceEligibilityManager.toggleTestingBypass(enable)
+    }
+
+    fun formatDuration(ms: Long): String = app.creditManager.formatDuration(ms)
+    fun formatDurationBengali(ms: Long): String = app.creditManager.formatDurationBengali(ms)
+
     // Selected image for vision analysis
     private val _selectedImageBitmap = MutableStateFlow<Bitmap?>(null)
     val selectedImageBitmap: StateFlow<Bitmap?> = _selectedImageBitmap.asStateFlow()
@@ -98,24 +111,61 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             _isLoading.value = true
             _currentStatusMessage.value = "Processing..."
+            app.creditManager.setSessionActive(true)
 
-            // 1. Check for local app launching commands ("open youtube", "open calculator", etc.)
-            if (prompt.lowercase().startsWith("open ") || prompt.lowercase().startsWith("launch ")) {
-                val launched = DeviceControlHelper.launchAppByName(app, prompt)
-                if (launched) {
-                    val reply = "Launching application: ${prompt.replace("(?i)^(open|launch)\\s+".toRegex(), "")}."
+            // 0. Check Device Eligibility (Vivo 4GB RAM requirement)
+            if (!app.deviceEligibilityManager.isDeviceAllowed()) {
+                val specs = app.deviceEligibilityManager.deviceSpecs.value
+                val reply = "⚠️ ডিভাইস সীমাবদ্ধতা: এই অ্যাপটি শুধুমাত্র Vivo 4GB RAM স্মার্টফোনের জন্য অনুমোদিত। আপনার বর্তমান ডিভাইস: ${specs.manufacturer} ${specs.model} (${String.format(java.util.Locale.US, "%.1f", specs.totalRamGb)} GB RAM)। আপনি হোমস্ক্রিন থেকে ডেমো/টেস্ট মোড অন করতে পারেন।"
+                app.chatRepository.saveMessage(sender = "assistant", content = reply, isError = true)
+                speakIfNeeded(reply, currentSettings, "bn")
+                _isLoading.value = false
+                _currentStatusMessage.value = "Device verification required"
+                return@launch
+            }
+
+            // 0.1 Check Credit Limit (2 hours active credit, 6 hours cooldown)
+            if (!app.creditManager.isCreditAvailable()) {
+                val cooldownBengali = app.creditManager.formatDurationBengali(app.creditManager.cooldownRemainingMs.value)
+                val reply = "আপনার ২ ঘণ্টার ব্যবহারের লিমিট শেষ হয়েছে। ১ ক্রেডিট শেষ না হওয়া পর্যন্ত অন্য ক্রেডিট যুক্ত হবে না। ৬ ঘণ্টা পর পরবর্তী ক্রেডিট যোগ হবে। বাকি সময়: $cooldownBengali।"
+                app.chatRepository.saveMessage(sender = "assistant", content = reply, isError = true)
+                speakIfNeeded(reply, currentSettings, "bn")
+                _isLoading.value = false
+                _currentStatusMessage.value = "Credit in cooldown"
+                return@launch
+            }
+
+            // 1. Check for URL / Web Link opening ("কোন লিংকের ভিতর ঢুকতে পারবে")
+            val extractedUrl = DeviceControlHelper.extractUrl(prompt)
+            val lower = prompt.lowercase()
+            if (extractedUrl != null || lower.contains("লিংক") || lower.contains("লিংকে") || lower.contains("ওয়েবসাইট") || lower.contains("website") || lower.contains("open link")) {
+                if (extractedUrl != null) {
+                    val opened = DeviceControlHelper.openUrl(app, extractedUrl)
+                    val reply = if (opened) "জি, লিংকটি ব্রাউজারে ওপেন করা হয়েছে: $extractedUrl" else "লিংকটি ওপেন করা যায়নি।"
                     app.chatRepository.saveMessage(sender = "assistant", content = reply)
-                    speakIfNeeded(reply, currentSettings)
+                    speakIfNeeded(reply, currentSettings, "bn")
                     _isLoading.value = false
                     _currentStatusMessage.value = "Ready"
                     return@launch
                 }
             }
 
-            // 2. Check for Accessibility screen commands ("read my screen", "what is on my screen", "scroll down", "tap ...")
+            // 2. Check for App Launching ("মোবাইলের যতগুলো অ্যাপ আছে বললে ওপেন করতে পারবে নাম বলে দিলেই")
+            if (DeviceControlHelper.isAppLaunchCommand(prompt)) {
+                val launchResult = DeviceControlHelper.launchAppByName(app, prompt)
+                if (launchResult.success) {
+                    val reply = launchResult.message
+                    app.chatRepository.saveMessage(sender = "assistant", content = reply)
+                    speakIfNeeded(reply, currentSettings, "bn")
+                    _isLoading.value = false
+                    _currentStatusMessage.value = "Ready"
+                    return@launch
+                }
+            }
+
+            // 3. Check for Accessibility screen commands ("read my screen", "what is on my screen", "scroll down", "tap ...")
             val screenService = RdcAccessibilityService.instance
-            val lower = prompt.lowercase()
-            if (lower.contains("read my screen") || lower.contains("what is on my screen") || lower.contains("screen summary") || lower.contains("আমার স্ক্রিন পড়")) {
+            if (lower.contains("read my screen") || lower.contains("what is on my screen") || lower.contains("screen summary") || lower.contains("আমার স্ক্রিন পড়") || lower.contains("স্ক্রিন দেখ")) {
                 val description = screenService?.describeScreen()
                     ?: "Screen Assistant is currently inactive. Please enable Accessibility permission in Settings -> Screen Assistant."
                 app.chatRepository.saveMessage(sender = "assistant", content = description)
@@ -125,36 +175,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
 
-            if (lower.startsWith("tap ") || lower.startsWith("click ")) {
-                val target = prompt.substringAfter(" ").trim()
+            if (lower.startsWith("tap ") || lower.startsWith("click ") || lower.contains("ক্লিক করো") || lower.contains("ট্যাপ করো")) {
+                val target = prompt.replace("(?i)^(tap|click)\\s+".toRegex(), "")
+                    .replace("ক্লিক করো", "")
+                    .replace("ট্যাপ করো", "")
+                    .trim()
                 val clicked = screenService?.tapElementWithText(target) ?: false
-                val reply = if (clicked) "Tapped on \"$target\"." else "Could not locate interactive element \"$target\" on screen."
+                val reply = if (clicked) "স্ক্রিনে \"$target\" ওপেন/ক্লিক করা হয়েছে।" else "স্ক্রিনে \"$target\" বাটন বা লিংকটি খুঁজে পাওয়া যায়নি।"
                 app.chatRepository.saveMessage(sender = "assistant", content = reply)
-                speakIfNeeded(reply, currentSettings)
+                speakIfNeeded(reply, currentSettings, "bn")
                 _isLoading.value = false
                 _currentStatusMessage.value = "Ready"
                 return@launch
             }
 
-            if (lower == "scroll down" || lower == "scroll forward") {
+            if (lower == "scroll down" || lower == "scroll forward" || lower.contains("নিচে নামাও")) {
                 val scrolled = screenService?.scroll(forward = true) ?: false
-                val reply = if (scrolled) "Scrolled down." else "Could not scroll current screen."
+                val reply = if (scrolled) "স্ক্রিন নিচে স্ক্রোল করা হয়েছে।" else "স্ক্রিন স্ক্রোল করা যায়নি।"
                 app.chatRepository.saveMessage(sender = "assistant", content = reply)
                 _isLoading.value = false
                 _currentStatusMessage.value = "Ready"
                 return@launch
             }
 
-            if (lower == "scroll up" || lower == "scroll back") {
+            if (lower == "scroll up" || lower == "scroll back" || lower.contains("উপরে তোলো")) {
                 val scrolled = screenService?.scroll(forward = false) ?: false
-                val reply = if (scrolled) "Scrolled up." else "Could not scroll current screen."
+                val reply = if (scrolled) "স্ক্রিন উপরে স্ক্রোল করা হয়েছে।" else "স্ক্রিন স্ক্রোল করা যায়নি।"
                 app.chatRepository.saveMessage(sender = "assistant", content = reply)
                 _isLoading.value = false
                 _currentStatusMessage.value = "Ready"
                 return@launch
             }
 
-            // 3. Check for Web Search trigger
+            // 4. Check for Web Search trigger
             if (app.webSearchService.shouldTriggerSearch(prompt)) {
                 _currentStatusMessage.value = "Searching live web..."
                 val searchResult = app.webSearchService.searchWeb(prompt, app.aiService)
@@ -172,7 +225,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
 
-            // 4. Regular AI conversation (or vision understanding)
+            // 5. Regular AI conversation (or vision understanding)
             _currentStatusMessage.value = "Thinking..."
             val recentTurns = app.chatRepository.getRecentMessages(6).reversed()
 
@@ -350,50 +403,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun handleFloatingVoiceQuery(spokenText: String) {
         if (spokenText.isBlank()) return
-        val currentSettings = settings.value
-        viewModelScope.launch {
-            _isLoading.value = true
-            _currentStatusMessage.value = "Processing voice..."
-
-            // User message is logged directly - no echoing
-            app.chatRepository.saveMessage(sender = "user", content = spokenText, language = currentSettings.language)
-
-            val snapshot = _screenSnapshot.value ?: RdcAccessibilityService.instance?.getActiveScreenSnapshot()
-            val screenContextPrompt = if (snapshot != null && snapshot.fullText.isNotBlank()) {
-                "User query: $spokenText\n\nActive Screen Snapshot Context:\nApp: ${snapshot.packageName ?: "Unknown"}\nScreen Text: ${snapshot.fullText.take(500)}\nInteractive Elements: ${snapshot.elements.filter { it.isClickable }.joinToString { it.text.ifBlank { it.contentDescription ?: "" } }.take(300)}"
-            } else {
-                spokenText
-            }
-
-            val result = app.aiService.generateResponse(
-                prompt = screenContextPrompt,
-                history = app.chatRepository.getRecentMessages(4).reversed(),
-                language = currentSettings.language,
-                systemInstruction = "CRITICAL DIRECTIVE: Do NOT repeat the user's words or quote the question. Answer directly, concisely and clearly in 1-3 sentences so it can be comfortably spoken in a clear female voice.",
-                customApiKey = currentSettings.customApiKey,
-                customModel = currentSettings.customModel
-            )
-
-            app.chatRepository.saveMessage(
-                sender = "assistant",
-                content = result.text,
-                language = result.detectedLanguage,
-                isError = result.isError
-            )
-
-            if (!result.isError) {
-                val targetLang = if (currentSettings.language != "auto") currentSettings.language else result.detectedLanguage
-                app.voiceService.speak(
-                    text = result.text,
-                    languageCode = targetLang,
-                    gender = currentSettings.voiceGender,
-                    speed = currentSettings.speechSpeed
-                )
-            }
-
-            _isLoading.value = false
-            _currentStatusMessage.value = "Ready"
-        }
+        sendMessage(spokenText)
     }
 
     // Settings modifiers
