@@ -1,4 +1,5 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import java.util.Base64
 
 plugins {
   alias(libs.plugins.android.application)
@@ -11,7 +12,7 @@ plugins {
 
 android {
   namespace = "com.example"
-  compileSdk = 36
+  compileSdk = 35
 
   defaultConfig {
     applicationId = "com.rdc.ai"
@@ -21,6 +22,18 @@ android {
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+  }
+
+  val localDebugKeystore = file("${rootDir}/debug.keystore")
+  if (!localDebugKeystore.exists()) {
+    val base64Keystore = file("${rootDir}/debug.keystore.base64")
+    if (base64Keystore.exists()) {
+      try {
+        localDebugKeystore.writeBytes(Base64.getMimeDecoder().decode(base64Keystore.readText().trim()))
+      } catch (_: Exception) {
+        // Fallback handled by AGP
+      }
+    }
   }
 
   signingConfigs {
